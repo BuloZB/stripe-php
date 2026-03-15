@@ -269,7 +269,7 @@ class ApiRequestor
             case 'idempotency_error':
                 return Exception\IdempotencyException::factory($msg, $rcode, $rbody, $resp, $rheaders, $code);
 
-                // The beginning of the section generated from our OpenAPI spec
+                // switchCases: The beginning of the section generated from our OpenAPI spec
             case 'temporary_session_expired':
                 return Exception\TemporarySessionExpiredException::factory(
                     $msg,
@@ -280,7 +280,7 @@ class ApiRequestor
                     $code
                 );
 
-                // The end of the section generated from our OpenAPI spec
+                // switchCases: The end of the section generated from our OpenAPI spec
             default:
                 return self::_specificV1APIError($rbody, $rcode, $rheaders, $resp, $errorData);
         }
@@ -375,13 +375,18 @@ class ApiRequestor
      * @return string the detected AI agent slug, or empty string if none detected
      */
     const AI_AGENTS = [
+        // aiAgents: The beginning of the section generated from our OpenAPI spec
         ['ANTIGRAVITY_CLI_ALIAS', 'antigravity'],
         ['CLAUDECODE', 'claude_code'],
         ['CLINE_ACTIVE', 'cline'],
         ['CODEX_SANDBOX', 'codex_cli'],
+        ['CODEX_THREAD_ID', 'codex_cli'],
+        ['CODEX_SANDBOX_NETWORK_DISABLED', 'codex_cli'],
+        ['CODEX_CI', 'codex_cli'],
         ['CURSOR_AGENT', 'cursor'],
         ['GEMINI_CLI', 'gemini_cli'],
         ['OPENCODE', 'open_code'],
+        // aiAgents: The end of the section generated from our OpenAPI spec
     ];
 
     private static function _detectAIAgent($getEnv = null)
@@ -414,8 +419,6 @@ class ApiRequestor
         $uaString = "Stripe/{$apiMode} PhpBindings/" . Stripe::VERSION;
 
         $langVersion = \PHP_VERSION;
-        $uname_disabled = self::_isDisabled(\ini_get('disable_functions'), 'php_uname');
-        $uname = $uname_disabled ? '(disabled)' : \php_uname();
 
         // Fallback to global configuration to maintain backwards compatibility.
         $appInfo = $appInfo ?: Stripe::getAppInfo();
@@ -423,9 +426,14 @@ class ApiRequestor
             'bindings_version' => Stripe::VERSION,
             'lang' => 'php',
             'lang_version' => $langVersion,
-            'publisher' => 'stripe',
-            'uname' => $uname,
         ];
+        if (Stripe::getEnableTelemetry()) {
+            $uname_disabled = self::_isDisabled(\ini_get('disable_functions'), 'php_uname');
+            $ua['platform'] = $uname_disabled
+                ? '(disabled)'
+                // only get general platform information, e.g. `Darwin 25.3.0 arm64`
+                : \php_uname('s') . ' ' . \php_uname('r') . ' ' . \php_uname('m');
+        }
         if ($clientInfo) {
             $ua = \array_merge($clientInfo, $ua);
         }
