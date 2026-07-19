@@ -101,6 +101,58 @@ final class ApiRequestorTest extends TestCase
         self::assertSame($headers['Authorization'], 'Bearer ' . $apiKey);
     }
 
+    public function testDefaultHeadersIncludeTelemetryIdWhenTelemetryEnabled()
+    {
+        $this->clearAgentEnvVars();
+        TelemetryId::reset();
+
+        $originalTelemetry = Stripe::getEnableTelemetry();
+        Stripe::setEnableTelemetry(true);
+
+        try {
+            $reflector = new \ReflectionClass(ApiRequestor::class);
+            $method = $reflector->getMethod('_defaultHeaders');
+            $method->setAccessible(true);
+
+            $headers = $method->invoke(null, 'sk_test_notarealkey');
+
+            $ua = \json_decode($headers['X-Stripe-Client-User-Agent'], true);
+            if (\array_key_exists('telemetry_id', $ua)) {
+                // telemetry_id is a 32-char hex string (16 random bytes as hex)
+                self::assertTrue(
+                    (bool) \preg_match('/^[0-9a-f]{32}$/', $ua['telemetry_id']),
+                    'Expected telemetry_id to be a 32-char hex string, got: ' . $ua['telemetry_id']
+                );
+            }
+        } finally {
+            Stripe::setEnableTelemetry($originalTelemetry);
+            TelemetryId::reset();
+        }
+    }
+
+    public function testDefaultHeadersOmitTelemetryIdWhenTelemetryDisabled()
+    {
+        $this->clearAgentEnvVars();
+        TelemetryId::reset();
+
+        $originalTelemetry = Stripe::getEnableTelemetry();
+        Stripe::setEnableTelemetry(false);
+
+        try {
+            $reflector = new \ReflectionClass(ApiRequestor::class);
+            $method = $reflector->getMethod('_defaultHeaders');
+            $method->setAccessible(true);
+
+            $headers = $method->invoke(null, 'sk_test_notarealkey');
+
+            $ua = \json_decode($headers['X-Stripe-Client-User-Agent'], true);
+            self::assertArrayNotHasKey('telemetry_id', $ua);
+        } finally {
+            Stripe::setEnableTelemetry($originalTelemetry);
+            TelemetryId::reset();
+        }
+    }
+
     public function testDefaultHeadersOmitPlatformWhenTelemetryDisabled()
     {
         $this->clearAgentEnvVars();
